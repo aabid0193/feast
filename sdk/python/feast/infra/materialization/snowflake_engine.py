@@ -390,7 +390,7 @@ class SnowflakeMaterializationEngine(BatchMaterializationEngine):
             fv_created_str = None
 
         online_path = get_snowflake_online_store_path(repo_config, feature_view)
-        online_table = f'{online_path}."[online-hybrid] {project}_{feature_view.name}"'
+        online_table = f'{online_path}."{repo_config.online_store.table_type} {project}_{feature_view.name}"'
 
         query = f"""
             SELECT
