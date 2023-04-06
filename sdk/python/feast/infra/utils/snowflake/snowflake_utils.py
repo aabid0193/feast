@@ -120,6 +120,14 @@ def get_snowflake_online_store_path(
     return online_path
 
 
+def get_snowflake_online_table_fully_qualified_name(
+    config: RepoConfig,
+    feature_view: FeatureView,
+) -> str:
+    online_path = get_snowflake_online_store_path(config, feature_view)
+    return f'{online_path}."{config.online_store.table_type_fqn} {config.project}_{feature_view.name}"'
+
+
 def package_snowpark_zip(project_name) -> Tuple[str, str]:
     path = os.path.dirname(feast.__file__)
     copy_path = path + f"/snowflake_feast_{project_name}"

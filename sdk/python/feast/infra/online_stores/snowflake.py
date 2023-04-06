@@ -15,7 +15,7 @@ from feast.infra.online_stores.online_store import OnlineStore
 from feast.infra.utils.snowflake.snowflake_utils import (
     execute_snowflake_statement,
     get_snowflake_conn,
-    get_snowflake_online_store_path,
+    get_snowflake_online_table_fully_qualified_name,
     write_pandas_binary,
 )
 from feast.protos.feast.types.EntityKey_pb2 import EntityKey as EntityKeyProto
@@ -121,7 +121,7 @@ class SnowflakeOnlineStore(OnlineStore):
             agg_df = pd.concat(dfs)
 
             # This combines both the data upload plus the overwrite in the same transaction
-            online_path = get_snowflake_online_store_path(config, table)
+            online_table = get_snowflake_online_table_fully_qualified_name(config, table)
             with get_snowflake_conn(config.online_store, autocommit=False) as conn:
                 write_pandas_binary(
                     conn,
@@ -132,7 +132,7 @@ class SnowflakeOnlineStore(OnlineStore):
                 )  # special function for writing binary to snowflake
 
                 query = f"""
-                    INSERT OVERWRITE INTO {online_path}."{config.online_store.table_type_fqn} {config.project}_{table.name}"
+                    INSERT OVERWRITE INTO {online_table}
                         SELECT
                             "entity_feature_key",
                             "entity_key",
@@ -145,7 +145,7 @@ class SnowflakeOnlineStore(OnlineStore):
                               *,
                               ROW_NUMBER() OVER(PARTITION BY "entity_key","feature_name" ORDER BY "event_ts" DESC, "created_ts" DESC) AS "_feast_row"
                           FROM
-                              {online_path}."{config.online_store.table_type_fqn} {config.project}_{table.name}")
+                              {online_table})
                         WHERE
                             "_feast_row" = 1;
                 """
@@ -185,13 +185,13 @@ class SnowflakeOnlineStore(OnlineStore):
             ]
         )
 
-        online_path = get_snowflake_online_store_path(config, table)
+        online_table = get_snowflake_online_table_fully_qualified_name(config, table)
         with get_snowflake_conn(config.online_store) as conn:
             query = f"""
                 SELECT
                     "entity_key", "feature_name", "value", "event_ts"
                 FROM
-                    {online_path}."{config.online_store.table_type_fqn} {config.project}_{table.name}"
+                    {online_table}
                 WHERE
                     "entity_feature_key" IN ({entity_fetch_str})
             """
@@ -230,9 +230,9 @@ class SnowflakeOnlineStore(OnlineStore):
 
         with get_snowflake_conn(config.online_store) as conn:
             for table in tables_to_keep:
-                online_path = get_snowflake_online_store_path(config, table)
+                online_table = get_snowflake_online_table_fully_qualified_name(config, table)
                 query = f"""
-                    CREATE {config.online_store.table_type.upper()} TABLE IF NOT EXISTS {online_path}."{config.online_store.table_type_fqn} {config.project}_{table.name}" (
+                    CREATE {config.online_store.table_type.upper()} TABLE IF NOT EXISTS {online_table}" (
                         "entity_feature_key" BINARY PRIMARY KEY,
                         "entity_key" BINARY,
                         "feature_name" VARCHAR,
@@ -244,8 +244,8 @@ class SnowflakeOnlineStore(OnlineStore):
                 execute_snowflake_statement(conn, query)
 
             for table in tables_to_delete:
-                online_path = get_snowflake_online_store_path(config, table)
-                query = f'DROP TABLE IF EXISTS {online_path}."{config.online_store.table_type_fqn} {config.project}_{table.name}"'
+                online_table = get_snowflake_online_table_fully_qualified_name(config, table)
+                query = f'DROP TABLE IF EXISTS {online_table}'
                 execute_snowflake_statement(conn, query)
 
     def teardown(
@@ -258,6 +258,6 @@ class SnowflakeOnlineStore(OnlineStore):
 
         with get_snowflake_conn(config.online_store) as conn:
             for table in tables:
-                online_path = get_snowflake_online_store_path(config, table)
-                query = f'DROP TABLE IF EXISTS {online_path}."{config.online_store.table_type_fqn} {config.project}_{table.name}"'
+                online_table = get_snowflake_online_table_fully_qualified_name(config, table)
+                query = f'DROP TABLE IF EXISTS {online_table}'
                 execute_snowflake_statement(conn, query)
